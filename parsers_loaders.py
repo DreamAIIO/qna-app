@@ -25,9 +25,9 @@ class GoogleCloudDocumentAIOnlineParser(BaseBlobParser):
         from google.api_core.client_options import ClientOptions
         from google.cloud import documentai
 
-        project_id = os.environ.get("PROJECT_ID","onediamond-staging") # "cedar-gift-317820"
+        project_id = os.environ.get("PROJECT_ID")
         location = os.environ.get("PROCESSOR_LOCATION","us")  # Format is 'us' or 'eu'
-        processor_id = os.environ.get("DOCAI_PROCESSOR_ID","b0bd3522166af1c5")  # Create processor in Cloud Console "4d39007f411e8657"
+        processor_id = os.environ.get("DOCAI_PROCESSOR_ID")
         
         self.mime_type = kwargs.get("mime_type","application/pdf")
         self.docai_client = documentai.DocumentProcessorServiceClient(
@@ -43,7 +43,7 @@ class GoogleCloudDocumentAIOnlineParser(BaseBlobParser):
         # Load Binary Data into Document AI RawDocument Object
         raw_document = documentai.RawDocument(content=pdf_file_obj, mime_type=self.mime_type)
 
-        ocr_config = documentai.OcrConfig(enable_native_pdf_parsing=True) # {"ocr_config": {"enable_native_pdf_parsing": True}}
+        ocr_config = documentai.OcrConfig(enable_native_pdf_parsing=True) 
         
         project_name = self.docai_client.common_project_path()
         # print(project_name)
@@ -123,7 +123,7 @@ class GoogleCloudDocumentAIBatchParser(BaseBlobParser):
         )
         
         self.storage_client = storage.Client()
-        project_id = self.storage_client.project #os.environ.get("PROJECT_ID","onediamond-staging") # "cedar-gift-317820" #self.docai_client.project
+        project_id = self.storage_client.project
         self.resource_name = self.docai_client.processor_path(project_id, self.location, processor_id)
         
     
@@ -162,7 +162,7 @@ class GoogleCloudDocumentAIBatchParser(BaseBlobParser):
 
 
         if gcs_output_uri is None:
-            gcs_output_uri = os.environ.get("GCS_OUTPUT_FOLDER","gs://qna-staging/docs/outputs/")
+            gcs_output_uri = os.environ.get("GCS_OUTPUT_FOLDER")
 
         if isinstance(gcs_input_uris, str):
             gcs_input_uris = [gcs_input_uris]
@@ -388,7 +388,7 @@ class DocAI_Loader(BaseLoader):
         self.file_uris = [DocAI_Loader.__validate_uri(file_uri) for file_uri in file_uris]
         self.file_uris = [f for f in self.file_uris if len(f) > 0]
         if output_folder_uri is None:
-            self.output_folder_uri = os.environ.get("GCS_OUTPUT_FOLDER","gs://qna-staging/docs/outputs/")
+            self.output_folder_uri = os.environ.get("GCS_OUTPUT_FOLDER")
         else:
             self.output_folder_uri = DocAI_Loader.__validate_uri(output_folder_uri).strip('/') + '/'
     
