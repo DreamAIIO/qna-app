@@ -1,11 +1,8 @@
-# import io
 import json
 import os
 import re
-# from functools import partial
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
-# import time
 import numpy as np
 import pandas as pd
 import rapidfuzz as rf
@@ -23,22 +20,14 @@ from langchain.chains.combine_documents.stuff import StuffDocumentsChain
 from langchain.chains.llm import LLMChain
 from langchain.chains.qa_with_sources import load_qa_with_sources_chain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-# from langchain_community.embeddings.openai import OpenAIEmbeddings
-# from langchain.callbacks.manager import (AsyncCallbackManagerForChainRun,
-#                                          CallbackManagerForChainRun)
 from langchain_core.callbacks.manager import (AsyncCallbackManagerForChainRun,
                                               CallbackManagerForChainRun)
-# from langchain.schema import Document
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseLanguageModel
-# from langchain.prompts import PromptTemplate
-# from langchain.prompts.base import BasePromptTemplate
 from langchain_core.prompts.base import BasePromptTemplate
 from langchain_core.prompts.prompt import PromptTemplate
-# from langchain.vectorstores.base import VectorStore
 from langchain_core.vectorstores import VectorStore
-# from langchain_community.chat_models import ChatOpenAI
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from parsers_loaders import DocAI_Loader, PyPDF2_TesseractOCR_Loader
@@ -48,10 +37,6 @@ from vector_stores import (DEFAULT_FAISS_DIRECTORY, DEFAULT_FAISS_INDEX,
                            DEFAULT_MILVUS_CONNECTION, EMBEDDINGS_DIM,
                            DaiVectorStore, PDFQnA_COLLECTION_NAME, get_index)
 
-# from langchain_openai.embeddings import OpenAIEmbeddings
-
-
-# from langchain.embeddings.huggingface import HuggingFaceEmbeddings
 
 
 def summarise(text, summ_chain: LLMChain):
@@ -106,16 +91,7 @@ def file_data_to_docs(
     else:
         loader = PyPDF2_TesseractOCR_Loader(filepaths[0], data=data, filename=filenames[0], user_id=user_id, use_ocr=use_ocr, use_docai=use_docai)
     docs = loader.load()
-    # Find the total number of words
-    # doc_words = {}
-    # meta_docs = [doc for doc in docs if doc.metadata['page'] == 0]
-    # for md in meta_docs:
-    #     nwords = re.findall(r"(\d+) words", md.page_content, flags=re.I)[0]
-    #     doc_words[md.metadata['filename']] = int(nwords)
     print("Document parsing complete! Summarising & splitting...")
-    #for doc in docs:
-    #    print(doc)
-    #    print('+'*100)
     sum_chain = LLMChain(llm=ChatOpenAI(temperature=0), prompt=PromptTemplate.from_template(SUMMARY_PROMPT_TEMPLATE))
     sum_docs = []
     mtdocs = []
@@ -123,17 +99,9 @@ def file_data_to_docs(
     for doc in docs:
         doc.metadata['id'] = fname_to_id[doc.metadata['filename']]
         if doc.metadata['page'] == 0 or doc.metadata.get('start_index', 0) < 0:
-            # Ignore the metadata doc and the per-page table docs
-            # if doc.metadata.get('start_index',-1) == -2:
-            #     print(doc)
-            #     print()
             mtdocs.append(doc)
         else:
-            # if doc_words[doc.metadata['filename']] >= 75_000:
             summary = summarise(doc.page_content, sum_chain)
-            # else:
-            #     summary = doc.page_content
-            # print(f"Page {doc.metadata['page']} Summary:\n{summary}\n")
             meta = doc.metadata
             meta['start_index'] = -1
             sdoc = Document(
@@ -152,7 +120,6 @@ def get_pdfs_index(file_id: Optional[str]=None, filepath:Optional[str]=None, dat
               faiss_folderpath: str=DEFAULT_FAISS_DIRECTORY, faiss_index_name: str = DEFAULT_FAISS_INDEX
              ):
 
-    # from langchain.vectorstores import Chroma, Milvus
     from vector_stores import DaiChroma, DaiMilvus
 
     embs = OpenAIEmbeddings() #HuggingFaceEmbeddings(model_name=embs_model_name)
@@ -173,7 +140,6 @@ def get_pdfs_index(file_id: Optional[str]=None, filepath:Optional[str]=None, dat
     fname_to_id = {filename: file_id}
     docs, sum_docs, mtdocs = file_data_to_docs(fname_to_id, filepaths=[filepath], data=data, filenames=[filename], chunk_size=chunk_size, use_ocr=False, use_docai=True)
     
-    # vector_index = Chroma(collection_name='temp', embedding_function=embs)
     if index_name.lower() == 'chroma':
         vector_index = DaiChroma.from_documents(docs, collection_name=collection_name, embedding=embs)
         vector_index.add_documents(sum_docs)
@@ -185,18 +151,17 @@ def get_pdfs_index(file_id: Optional[str]=None, filepath:Optional[str]=None, dat
         search_params = {"metric_type": "L2", "params": {"ef": 10, "radius": 1.5, "range_filter": 0.0}}
         vector_index = DaiMilvus.from_documents(docs+sum_docs+mtdocs, collection_name=collection_name, embedding=embs, connection_args=connection_args,
                                              search_params=search_params, index_params=index_params, drop_old=drop_old)
-        # vector_index.add_documents(sum_docs)
-        # vector_index.add_documents(mtdocs)
+        
     elif index_name.lower() == 'faiss':
         from langchain.vectorstores import FAISS
         if faiss_folderpath is not None and faiss_index_name is not None and os.path.isdir(faiss_folderpath):
             try:
                 vector_index = FAISS.load_local(faiss_folderpath, embs, faiss_index_name)
                 vector_index.add_documents(docs+sum_docs+mtdocs)
-                # vector_index.add_documents(sum_docs, create_embeddings=False)
+                
             except:
                 vector_index = FAISS.from_documents(docs+sum_docs+mtdocs, embedding=embs)
-        # raise NotImplementedError("FAISS index has not been implemented")
+        
         else:
             vector_index = FAISS.from_documents(docs, embedding=embs)
     else:
@@ -242,12 +207,10 @@ def update_data(vector_store: DaiVectorStore, file_ids: List[str], filenames :Li
         
         try:
             vector_store.add_documents(docs+sum_docs+mtdocs)
-            # vector_store.add_documents(sum_docs)
-            # vector_store.add_documents(mtdocs)
+            
         except Exception as e:
             return False, f"Couldn't add new docs of file, {filenames}, to vector store due to error\n{e}\n of type {type(e)}"
-        #print(ids)
-        # print(ids_to_delete)
+        
     elif "faiss" in store_type.lower():
         ids = [f"{doc.metadata['user_id']}-{doc.metadata['source']}-{doc.metadata['start_index']}" for doc in docs]
         try:
@@ -260,7 +223,6 @@ def update_data(vector_store: DaiVectorStore, file_ids: List[str], filenames :Li
             vector_store.add_documents(docs+sum_docs+mtdocs, ids=ids)
         except:
             return False, f"Couldn't add new docs for file: {filenames} to vector store"
-        #print(ids)
         vector_store.save_local(folder_path=faiss_folderpath, index_name=faiss_index_name)
         return
     elif "chroma" in store_type.lower():
@@ -277,10 +239,8 @@ def update_data(vector_store: DaiVectorStore, file_ids: List[str], filenames :Li
         _ = vector_store.delete(
             ids=ids_to_delete
         )
-    #     print("Previous file docs deleted!")
+        print("Previous file docs deleted!")
     return True, f"Files {filenames} added successfully"
-    # if not filename in self.user_files_loaded[user_id]:
-    #     self.user_files_loaded[user_id].add(filename)
 
 
 def query_table(table_filepath: str, query: str, paraphraser_chain: Optional[LLMChain] = None) -> str:
@@ -381,8 +341,6 @@ class UserFiles:
         if not user_id in self.user_files:
             print(f"User ID {user_id} has no file stored against it.")
             return
-        # if filename.lower() in self.user_files[user_id]:
-        #     self.user_files[user_id].remove(filename.lower())
         self.user_files[user_id] = set([ui for ui in self.user_files[user_id] if not file_id in ui])
 
     def get_files(self, user_id: str = '', return_only_fnames=True, return_only_ids=False):
@@ -509,7 +467,6 @@ class PDFQnA(Chain):
                         chain_type: str = "stuff", verbose: bool = False, search_kwargs: dict = {"k":6}, **kwargs):
             
         if vector_store_type.lower() == "chroma":
-            # from langchain.vectorstores import Chroma
             from vector_stores import DaiChroma
 
             collection_name = kwargs.get('chroma_collection_name',PDFQnA_COLLECTION_NAME)
@@ -520,7 +477,6 @@ class PDFQnA(Chain):
                                   persist_directory=kwargs.get('chroma_persist_directory', None), 
                                   client_settings=kwargs.get('chroma_client_settings', None))
         elif vector_store_type.lower() == "milvus":
-            # from langchain.vectorstores import Milvus
             from vector_stores import DaiMilvus
             collection_name = kwargs.get('milvus_collection_name', PDFQnA_COLLECTION_NAME)
             if collection_name is None:
@@ -534,7 +490,6 @@ class PDFQnA(Chain):
             from langchain.vectorstores.faiss import (FAISS,
                                                       dependable_faiss_import)
 
-            # raise NotImplementedError("FAISS index has not been implemented")
             
             faiss_folderpath = kwargs.get("faiss_folder_path", DEFAULT_FAISS_DIRECTORY)
             faiss_index_name = kwargs.get("faiss_index_name", DEFAULT_FAISS_INDEX)
@@ -560,7 +515,6 @@ class PDFQnA(Chain):
             output_key = "context"
         else:
             output_key = "answer"
-            # chain_type = kwargs.get("qa_chain_type")
             if chain_type == 'stuff':
                 qa_prompt = kwargs.get("qa_prompt", QA_PROMPT_TEMPLATE)
                 if isinstance(qa_prompt,str):
@@ -616,61 +570,6 @@ class PDFQnA(Chain):
             sources = sources[-1]
         return {self.output_answer_key:answer, self.output_source_key:sources}
     
-    '''
-    def prep_inputs(self, inputs: Union[Dict[str, Any], Any]) -> Dict[str, str]:
-        if not isinstance(inputs, dict):
-            _input_keys = set(self.input_keys)
-            if self.memory is not None:
-                # If there are multiple input keys, but some get set by memory so that
-                # only one is not set, we can still figure out which key it is.
-                _input_keys = _input_keys.difference(self.memory.memory_variables)
-            if len(_input_keys) != 1:
-                raise ValueError(
-                    f"A single string input was passed in, but this chain expects "
-                    f"multiple inputs ({_input_keys}). When a chain expects "
-                    f"multiple inputs, please call it by passing in a dictionary, "
-                    "eg `chain({'foo': 1, 'bar': 2})`"
-                )
-            inputs = {list(_input_keys)[0]: inputs}
-        else:
-            #######################################################################
-            # This `else` Block Is My Own Changes Made to Incorporate user_id and filenames
-            #######################################################################
-            _input_keys = []
-            for ik in self.input_keys:
-                if not ik in self.memory.memory_variables:
-                    _input_keys.append(ik)
-            
-            if len(_input_keys) == 0:
-                raise ValueError("No agent inputs found in input!")
-            
-            query = inputs.pop('query',None) or inputs[_input_keys[0]]
-            user_id = inputs.pop('user_id', "-1")
-            filenames = inputs.pop('filenames',[])
-            filenames = ','.join(filenames)
-            if user_id is not None:
-                query = f"QUESTION: {query} USER ID: {user_id}"
-            else:
-                query = f"QUESTION: {query}"
-            
-            if filenames is not None and filenames != "":
-                query = f"{query} FILENAMES: {filenames}"
-
-            # if filenames is not None and filenames != "":
-            #     query = re.sub(r"this file|this document|current document|current file|this pdf|current pdf", f"the {filename} file", query, flags=re.I)
-            inputs[_input_keys[0]] = query
-            #######################################################################
-            # END OF CHANGES
-            #######################################################################
-        
-        
-        if self.memory is not None:
-            external_context = self.memory.load_memory_variables(inputs)
-            inputs = dict(inputs, **external_context)
-        self._validate_inputs(inputs)
-        return inputs
-    '''
-
     def _call(self, inputs: Dict[str, Any], run_manager: CallbackManagerForChainRun | None = None) -> Dict[str, Any]:
         query = inputs[self.input_key]
         #print(query)
@@ -697,9 +596,6 @@ class PDFQnA(Chain):
             if len(fname) > 0:
                 fname = fname[0][0]
                 fnames.append(fname.lower())
-        # print(fname)
-        #print(pages)
-        #print("Inside PDF Q/A after splitting: ", query)
         
         if "chroma" in store_type:
             # file_docs = []
@@ -717,18 +613,15 @@ class PDFQnA(Chain):
             
             docs = self.vector_store.max_marginal_relevance_search(query, filter=filters, **self.search_args)
             #docs = self.vector_store.similarity_search(query, filter=filters, **self.search_args)
-            # docs += file_docs
-
+            
             # Remove all duplicate docs
             ndocs = []
             for i in range(len(docs)):
                 if not docs[i] in ndocs:
                     ndocs.append(docs[i])
-                # else:
-                #     del docs[i]
+                
             del docs
             docs = ndocs
-            # print(docs)
             
             
             ndocs = []
@@ -739,7 +632,6 @@ class PDFQnA(Chain):
                 filters = {"filename": fname, "user_id": user_id, "page": pno}
                 if not str(filters) in used_filters:
                     used_filters.add(str(filters))
-                    # tfilters = filters
                     # First query for any 'table docs' - doc that contains a list of tables present on this page
                     filters['start_index'] = -2
                     tab_doc = self.vector_store.query(filter=filters, k=1)
@@ -760,13 +652,12 @@ class PDFQnA(Chain):
                     #print(adocs)
                     if not doc in adocs:
                         adocs.append(doc)
-                    adocs = sorted(adocs, key=lambda a: (a.metadata.get('start_index',0))) #+a.metadata.get('page_start_index',0))
+                    adocs = sorted(adocs, key=lambda a: (a.metadata.get('start_index',0)))
                     all_text = [adoc.page_content for adoc in adocs]
-                    # doc.metadata['source'] = f"{fname}: Pg. {pno}"
                     ndocs.append(Document(page_content='\n'.join(all_text), metadata=doc.metadata))
                 
             del docs
-            docs = ndocs #docs + ndocs
+            docs = ndocs
         elif "milvus" in store_type:
             if len(pages) > 0:
                 pages = '[' + ", ".join(pages) + ']'
@@ -831,7 +722,7 @@ class PDFQnA(Chain):
                     #adocs = self.vector_store.similarity_search(query, expr=expr+f" and start_index >= 0", k=3)
                     if not doc in adocs:
                         adocs.append(doc)
-                    adocs = sorted(adocs, key=lambda a: (a.metadata.get('start_index',0))) #+a.metadata.get('page_start_index',0))
+                    adocs = sorted(adocs, key=lambda a: (a.metadata.get('start_index',0)))
                     all_text = [adoc.page_content for adoc in adocs]
                     ndocs.append(Document(page_content='\n'.join(all_text), metadata=adocs[0].metadata))
                 
@@ -846,8 +737,7 @@ class PDFQnA(Chain):
         for i in range(len(docs)):
             if not docs[i] in ndocs:
                 ndocs.append(docs[i])
-            # else:
-            #     del docs[i]
+            
         del docs
         docs = ndocs
             
@@ -868,16 +758,11 @@ class PDFQnA(Chain):
     
     async def _acall(self, inputs: Dict[str, Any], run_manager: AsyncCallbackManagerForChainRun | None = None) -> Dict[str, Any]:
         query = inputs[self.input_key]
-        #print(query)
-        # query = re.sub(r"QUESTION:", "", query, re.IGNORECASE).strip()
-        #print("Inside PDF Q/A before splitting: ", query)
-        # pages = re.findall(r"pages?:? ?(\d+)", query, re.I) #PDFQnA._match_pattern("PAGE:? ?(\d+)", query)
         pages = re.findall(r"pages? (\d+ ?[(,|and) ?\d]+)", query)
         if len(pages) > 0:
             pages = [p.strip()  for ps in pages for p in re.split(',|and', ps) if p.strip() != '']
         
         query, user_id, ufnames = _split_query(query)
-        # ufnames = re.split("PAGES?", ufnames, flags=re.IGNORECASE)[0].strip()
         if len(ufnames) == 0:
             # If no filename was given as input, then use re to try and find the filename in the user query
             ufnames = _match_pattern("mentioned in (.+)\.pdf|present in (.+)\.pdf|in the (.+)\.pdf file|from (.+)\.pdf|mentioned in (.+) file|the (.+) file|from (.+) file|mentioned in (.+)[\.\?\!]|from the (.+)[\.\?\!]|present in the (.+)[\.\?\!]", query)
@@ -896,15 +781,11 @@ class PDFQnA(Chain):
                     fnames.append(fname.lower())
         
         
-        # print(fname)
-        #print(pages)
-        #print("Inside PDF Q/A after splitting: ", query)
         store_type = str(type(self.vector_store)).lower()
         if "chroma" in store_type:
-            # file_docs = []
             filters = {}
             if fnames is not None and len(fnames) > 0 and fname != "":
-                # query = re.sub(r"this file|file|this document|document|current document|current file|this pdf|current pdf", fname, query, re.I)
+                
                 filters[self._meta_fname_keyname] = {"$in": fnames}
             if user_id is not None and user_id != "":
                 filters[self._meta_uid_keyname] = user_id
@@ -915,15 +796,12 @@ class PDFQnA(Chain):
                 filters = None
             #docs = await self.vector_store.asimilarity_search(query, filter=filters, **self.search_args)
             docs = await self.vector_store.amax_marginal_relevance_search(query, filter=filters, **self.search_args)
-            # docs += file_docs
-
             # Remove all duplicate docs
             ndocs = []
             for i in range(len(docs)):
                 if not docs[i] in ndocs:
                     ndocs.append(docs[i])
-                # else:
-                #     del docs[i]
+                
             del docs
             docs = ndocs
             # print(docs)
@@ -937,7 +815,6 @@ class PDFQnA(Chain):
                 filters = {"filename": fname, "user_id": user_id, "page": pno}
                 if not str(filters) in used_filters:
                     used_filters.add(str(filters))
-                    # tfilters = filters
                     # First query for any 'table docs' - doc that contains a list of tables present on this page
                     filters['start_index'] = -2
                     tab_doc = self.vector_store.query(filter=filters, k=1)
@@ -958,13 +835,12 @@ class PDFQnA(Chain):
                     #print(adocs)
                     if not doc in adocs:
                         adocs.append(doc)
-                    adocs = sorted(adocs, key=lambda a: (a.metadata.get('start_index',0))) #+a.metadata.get('page_start_index',0))
+                    adocs = sorted(adocs, key=lambda a: (a.metadata.get('start_index',0))) 
                     all_text = [adoc.page_content for adoc in adocs]
-                    # doc.metadata['source'] = f"{fname}: Pg. {pno}"
                     ndocs.append(Document(page_content='\n'.join(all_text), metadata=doc.metadata))
                 
             del docs
-            docs = ndocs #docs + ndocs
+            docs = ndocs
         elif "milvus" in store_type:
             if len(pages) > 0:
                 pages = '[' + ", ".join(pages) + ']'
@@ -979,24 +855,6 @@ class PDFQnA(Chain):
             else:
                 fnames = ''
             search_args = self.search_args
-            expr = None
-            # file_docs = []
-            # if fnames is not None and fnames != "":
-            #     # query = re.sub(r"this file|this document|current document|current file|this pdf|current pdf", fname, query, flags=re.I)
-            #     expr = f"{self._meta_fname_keyname} in {fname}"
-            #     if user_id is not None and user_id != "":
-            #         expr += f" and {self._meta_uid_keyname} == '{user_id}'"
-            #     if pages is not None and pages != "":
-            #         expr += f" and {self._meta_page_keyname} in {pages}"
-            #     expr += " and start_index > -1"
-                # file_docs += self.vector_store.similarity_search(query, expr=expr, k=4) # Return k docs
-                # search_args['k'] = max(search_args['k'] - 4, 4)
-            
-            # if page is not None and page != "":
-            #     expr = f"{self._meta_page_keyname} == {page}"
-            #     if user_id is not None and user_id != "":
-            #         expr += f" and {self._meta_uid_keyname} == '{user_id}'"
-            #     file_docs += self.vector_store.similarity_search(query, expr=expr, k=2) # Return k docs
             
             expr = ["start_index > -1"]
             if fnames is not None and fnames != "" and len(fnames) > 0:
@@ -1017,7 +875,6 @@ class PDFQnA(Chain):
             docs = await self.vector_store.amax_marginal_relevance_search(query, expr=expr, **search_args)
             ndocs = []
             used_expr = set({})
-            # used_tables_expr = set({})
             for doc in docs:
                 fname = doc.metadata[self._meta_fname_keyname]
                 pno = doc.metadata[self._meta_page_keyname]
@@ -1029,7 +886,6 @@ class PDFQnA(Chain):
                     tab_doc = self.vector_store.query(expr=texpr, k=1)
                     if len(tab_doc) > 0:
                         tab_doc = tab_doc[0]
-                        # fresult = ""
                         tables = []
                         for tab_fpath in tab_doc.page_content.split(','):
                             csv = query_table(tab_fpath, query="")
@@ -1044,7 +900,6 @@ class PDFQnA(Chain):
                         tab_doc.page_content = '\n\n'.join(tables)
                     else:
                         tab_doc = None
-                    # used_tables_expr.add(texpr)
                     adocs = self.vector_store.query(expr=expr+f" and start_index >= 0", k=None)
                     # adocs = [tab_doc] + adocs
                     if not tab_doc is None:
@@ -1052,13 +907,13 @@ class PDFQnA(Chain):
                     #adocs = await self.vector_store.asimilarity_search(query, expr=expr+f" and start_index >= 0", k=3)
                     if not doc in adocs:
                         adocs.append(doc)
-                    adocs = sorted(adocs, key=lambda a: (a.metadata.get('start_index',0))) #+a.metadata.get('page_start_index',0))
+                    adocs = sorted(adocs, key=lambda a: (a.metadata.get('start_index',0))) 
                     all_text = [adoc.page_content for adoc in adocs]
                     ndocs.append(Document(page_content='\n'.join(all_text), metadata=adocs[0].metadata))
                 
             del docs
             docs = ndocs #docs + ndocs
-            #docs = list(set(docs))
+            
         else:
             raise TypeError(f"Vector Store of type {store_type} is not supported.")
         
@@ -1067,8 +922,7 @@ class PDFQnA(Chain):
         for i in range(len(docs)):
             if not docs[i] in ndocs:
                 ndocs.append(docs[i])
-            # else:
-            #     del docs[i]
+            
         del docs
         docs = ndocs
             
@@ -1169,7 +1023,6 @@ class PDFQnAFile(Chain):
                         search_kwargs: dict = {"k":6}, verbose: bool = False, **kwargs):
             
         if vector_store_type.lower() == "chroma":
-            # from langchain.vectorstores import Chroma
             from vector_stores import DaiChroma
 
             collection_name = kwargs.get('chroma_collection_name',PDFQnA_COLLECTION_NAME)
@@ -1180,7 +1033,6 @@ class PDFQnAFile(Chain):
                                   persist_directory=kwargs.get('chroma_persist_directory', None), 
                                   client_settings=kwargs.get('chroma_client_settings', None))
         elif vector_store_type.lower() == "milvus":
-            # from langchain.vectorstores import Milvus
             from vector_stores import DaiMilvus
             collection_name = kwargs.get('milvus_collection_name', PDFQnA_COLLECTION_NAME)
             if collection_name is None:
@@ -1194,7 +1046,6 @@ class PDFQnAFile(Chain):
             from langchain.vectorstores.faiss import (FAISS,
                                                       dependable_faiss_import)
 
-            # raise NotImplementedError("FAISS index has not been implemented")
             
             faiss_folderpath = kwargs.get("faiss_folder_path", DEFAULT_FAISS_DIRECTORY)
             faiss_index_name = kwargs.get("faiss_index_name", DEFAULT_FAISS_INDEX)
@@ -1267,61 +1118,7 @@ class PDFQnAFile(Chain):
         else:
             sources = sources[-1]
         return {self.output_answer_key:answer, self.output_source_key:sources}
-    '''
-    def prep_inputs(self, inputs: Union[Dict[str, Any], Any]) -> Dict[str, str]:
-        if not isinstance(inputs, dict):
-            _input_keys = set(self.input_keys)
-            if self.memory is not None:
-                # If there are multiple input keys, but some get set by memory so that
-                # only one is not set, we can still figure out which key it is.
-                _input_keys = _input_keys.difference(self.memory.memory_variables)
-            if len(_input_keys) != 1:
-                raise ValueError(
-                    f"A single string input was passed in, but this chain expects "
-                    f"multiple inputs ({_input_keys}). When a chain expects "
-                    f"multiple inputs, please call it by passing in a dictionary, "
-                    "eg `chain({'foo': 1, 'bar': 2})`"
-                )
-            inputs = {list(_input_keys)[0]: inputs}
-        else:
-            #######################################################################
-            # This `else` Block Is My Own Changes Made to Incorporate user_id and filenames
-            #######################################################################
-            _input_keys = []
-            for ik in self.input_keys:
-                if not ik in self.memory.memory_variables:
-                    _input_keys.append(ik)
-            
-            if len(_input_keys) == 0:
-                raise ValueError("No agent inputs found in input!")
-            
-            query = inputs.pop('query',None) or inputs[_input_keys[0]]
-            user_id = inputs.pop('user_id', "-1")
-            filenames = inputs.pop('filenames',[])
-            filenames = filenames[0]
-            if user_id is not None:
-                query = f"QUESTION: {query} USER ID: {user_id}"
-            else:
-                query = f"QUESTION: {query}"
-            
-            if filenames is not None and filenames != "":
-                query = f"{query} FILENAME: {filenames}"
-
-            # if filenames is not None and filenames != "":
-            #     query = re.sub(r"this file|this document|current document|current file|this pdf|current pdf", f"the {filename} file", query, flags=re.I)
-            inputs[_input_keys[0]] = query
-            #######################################################################
-            # END OF CHANGES
-            #######################################################################
-        
-        
-        if self.memory is not None:
-            external_context = self.memory.load_memory_variables(inputs)
-            inputs = dict(inputs, **external_context)
-        self._validate_inputs(inputs)
-        return inputs
-    '''
-
+    
     def _call(self, inputs: Dict[str, Any], run_manager: CallbackManagerForChainRun | None = None) -> Dict[str, Any]:
         query = inputs[self.input_key]
         
@@ -1341,14 +1138,14 @@ class PDFQnAFile(Chain):
                     ufname = ufname[0][0]
                 else:
                     ufname = ufnames[0]
-                # ufname = qufname + ',' + ufname
+                
             else:
                 ufname = ufnames[0]
         else:
             ufname = ufnames[0]
         
         
-        # print(f"User {user_id} given filename: {ufname}")
+        
         if ufname is None or ufname == '':
             return {self.output_answer_key: "No docs found that match your query - this tool requires at least one filename that has been uploaded but none was provided! Please provide a filename and try again."}
         
@@ -1356,7 +1153,7 @@ class PDFQnAFile(Chain):
         if len(cur_user_files) == 0:
             return {self.output_answer_key: f"Sorry! User {user_id} has not uploaded any file so I cannot answer question. Please try again with a different user id."}
         fname = rf.process.extract(ufname, cur_user_files, scorer=rf.fuzz.partial_ratio, processor=lambda s: s.lower(), limit=1, score_cutoff=50)
-        # print(fname)
+        
         if len(fname) == 0:
             return {self.output_answer_key: f"Sorry! No docs found that match your query - User {user_id} has not uploaded any file with name {ufname}. Please try again with a different filename! I'm happy to help!"}
         fname = fname[0][0]
@@ -1373,47 +1170,26 @@ class PDFQnAFile(Chain):
             tidocs =  self.vector_store.query(filter=tab_filters, k=None)
             for tidoc in tidocs:
                 for tab_fpath in tidoc.page_content.split(','):
-                    # if "list" in query.lower():
-                    #     tdoc = Document(
-                    #         page_content=f"Following are the items listed in this table present on this page: {query_table(tab_fpath, query)}",
-                    #         metadata=tidoc.metadata
-                    #     )
-                    # else:
-                    #     tdoc = Document(
-                    #         page_content=f"Following are the individual records from a table present on this page: {query_table(tab_fpath, query='')}",
-                    #         metadata=tidoc.metadata
-                    #     )
+                    
                     tdoc = Document(
                         page_content=f"Following is a table present on this page:\n{query_table(tab_fpath, query='')}",
                         metadata=tidoc.metadata
                     )
                     docs.append(tdoc)
         elif "milvus" in store_type:
-            #query = re.sub(r"this file|this document|current document|current file|this pdf|current pdf", fname, query, re.I)
             expr = f"{self._meta_fname_keyname} == '{fname}' and start_index <= -1"
-            # tab_expr = f"{self._meta_fname_keyname} like '{fname}%' and start_index == -2"
             if user_id is not None and user_id != "":
                 expr += f" and {self._meta_uid_keyname} == '{user_id}'"
-                # tab_expr += f" and {self._meta_uid_keyname} == '{user_id}'"
+                
             docs = []
             idocs = self.vector_store.query(expr=expr, k=None) # Return k docs
-            # tidocs = self.vector_store.query(expr=tab_expr, k=None)
             for tidoc in idocs:
                 if tidoc.metadata.get('start_index', -1) == -1:
                     docs.append(tidoc)
                 else:
                     if "list" in query.lower():
                         for tab_fpath in tidoc.page_content.split(','):
-                            # if "list" in query.lower():
-                            #     tdoc = Document(
-                            #         page_content=f"Following are the items listed in this table present on this page:\n{query_table(tab_fpath, query)}",
-                            #         metadata=tidoc.metadata
-                            #     )
-                            # else:
-                            #     tdoc = Document(
-                            #         page_content=f"Following are the records/rows from a table present on this page:\n{query_table(tab_fpath, query='')}",
-                            #         metadata=tidoc.metadata
-                            #     )
+                            
                             tdoc = Document(
                                 page_content=f"Following is a table present on {tidoc.metadata['source']}:\n{query_table(tab_fpath, query='')}",
                                 metadata=tidoc.metadata
@@ -1461,14 +1237,14 @@ class PDFQnAFile(Chain):
                     ufname = ufname[0][0]
                 else:
                     ufname = ufnames[0]
-                # ufname = qufname + ',' + ufname
+                
             else:
                 ufname = ufnames[0]
         else:
             ufname = ufnames[0]
         
         
-        # print(f"User {user_id} given filename: {ufname}")
+        
         if ufname is None or ufname == '':
             return {self.output_answer_key: "No docs found that match your query - this tool requires at least one filename that has been uploaded but none was provided! Please provide a filename and try again."}
         
@@ -1476,14 +1252,11 @@ class PDFQnAFile(Chain):
         if len(cur_user_files) == 0:
             return {self.output_answer_key: f"Sorry! User {user_id} has not uploaded any file so I cannot answer question. Please try again with a different user id."}
         fname = rf.process.extract(ufname, cur_user_files,scorer=rf.fuzz.partial_ratio, processor=lambda s: s.lower(),limit=1, score_cutoff=70)
-        # print(fname)
         if len(fname) == 0:
             return {self.output_answer_key: f"Sorry! No docs found that match your query - User {user_id} has not uploaded any file with name {ufname}. Please try again with a different filename! I'm happy to help!"}
         fname = fname[0][0]
-        #print("Actual Filename:",fname)
         store_type = str(type(self.vector_store)).lower()
         if "chroma" in store_type or "faiss" in store_type:
-            #query = re.sub(r"this file|this document|current document|current file|this pdf|current pdf", fname, query, re.I)
             filters = {self._meta_fname_keyname: fname.lower(), "start_index": -1}
             tab_filters = {self._meta_fname_keyname: fname.lower(), "start_index": -2}
             if user_id is not None and user_id != "":
@@ -1493,47 +1266,24 @@ class PDFQnAFile(Chain):
             tidocs =  self.vector_store.query(filter=tab_filters, k=None)
             for tidoc in tidocs:
                 for tab_fpath in tidoc.page_content.split(','):
-                    # if "list" in query.lower():
-                    #     tdoc = Document(
-                    #         page_content=f"Following are the items listed in this table present on this page: {query_table(tab_fpath, query)}",
-                    #         metadata=tidoc.metadata
-                    #     )
-                    # else:
-                    #     tdoc = Document(
-                    #         page_content=f"Following are the individual records from a table present on this page: {query_table(tab_fpath, query='')}",
-                    #         metadata=tidoc.metadata
-                    #     )
                     tdoc = Document(
                         page_content=f"Following is a table present on this page:\n{query_table(tab_fpath, query='')}",
                         metadata=tidoc.metadata
                     )
                     docs.append(tdoc)
         elif "milvus" in store_type:
-            #query = re.sub(r"this file|this document|current document|current file|this pdf|current pdf", fname, query, re.I)
             expr = f"{self._meta_fname_keyname} == '{fname}' and start_index <= -1"
-            # tab_expr = f"{self._meta_fname_keyname} like '{fname}%' and start_index == -2"
             if user_id is not None and user_id != "":
                 expr += f" and {self._meta_uid_keyname} == '{user_id}'"
-                # tab_expr += f" and {self._meta_uid_keyname} == '{user_id}'"
+                
             docs = []
             idocs = self.vector_store.query(expr=expr, k=None) # Return k docs
-            # tidocs = self.vector_store.query(expr=tab_expr, k=None)
             for tidoc in idocs:
                 if tidoc.metadata.get('start_index', -1) == -1:
                     docs.append(tidoc)
                 else:
                     if "list" in query.lower():
                         for tab_fpath in tidoc.page_content.split(','):
-                            # if "list" in query.lower():
-                            #     tdoc = Document(
-                            #         page_content=f"Following are the items listed in this table present on this page:\n{query_table(tab_fpath, query)}",
-                            #         metadata=tidoc.metadata
-                            #     )
-                            # else:
-                            #     tdoc = Document(
-                            #         page_content=f"Following are the records/rows from a table present on this page:\n{query_table(tab_fpath, query='')}",
-                            #         metadata=tidoc.metadata
-                            #     )
                             tdoc = Document(
                                 page_content=f"Following is a table present on {tidoc.metadata['source']}:\n{query_table(tab_fpath, query='')}",
                                 metadata=tidoc.metadata
@@ -1559,17 +1309,3 @@ class PDFQnAFile(Chain):
         # print(answer[self.output_source_key])
         answer = {self.output_answer_key:f"{answer[self.output_answer_key]}\n\nSOURCES: {answer[self.output_source_key]}"}
         return answer
-
-
-if __name__ == "__main__":
-    from dotenv import load_dotenv
-    load_dotenv()
-    
-    search_kwargs = {'k': 8}
-    llm = ChatOpenAI(temperature=0,model_name=os.environ.get("OPENAI_MODEL_NAME", "gpt-4"),max_tokens=700)
-    vector_index = get_pdfs_index(index_name="milvus")
-
-    pdf_qna = PDFQnA.from_llm_and_vector_index(llm=llm, vector_index=vector_index, chain_type="stuff", search_kwargs=search_kwargs, verbose=True)
-    user_id = "u1"
-    while True:
-        filename = input("Please input the name of the filename(s) you want to query:")
